@@ -1,34 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param } from '@nestjs/common';
 import { WiseChatService } from './wise-chat.service';
-import { CreateWiseChatDto } from './dto/create-wise-chat.dto';
-import { UpdateWiseChatDto } from './dto/update-wise-chat.dto';
 
-@Controller('wise-chat')
+@Controller('wisechat')
 export class WiseChatController {
   constructor(private readonly wiseChatService: WiseChatService) {}
 
-  @Post()
-  create(@Body() createWiseChatDto: CreateWiseChatDto) {
-    return this.wiseChatService.create(createWiseChatDto);
+  @Post('create')
+  create(@Body('name') name: string, @Body('description') description: string) {
+    return this.wiseChatService.createChat(name, description);
   }
 
-  @Get()
-  findAll() {
-    return this.wiseChatService.findAll();
+  @Post(':id/send')
+  sendMessage(
+    @Param('id') chatId: number,
+    @Body('userId') userId: number,
+    @Body('content') content: string,
+  ) {
+    return this.wiseChatService.sendMessage(userId, chatId, content);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.wiseChatService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateWiseChatDto: UpdateWiseChatDto) {
-    return this.wiseChatService.update(+id, updateWiseChatDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.wiseChatService.remove(+id);
+  @Get(':id/history')
+  getHistory(@Param('id') chatId: number) {
+    return this.wiseChatService.getChatHistory(chatId);
   }
 }

@@ -1,26 +1,67 @@
-import { Injectable } from '@nestjs/common';
-import { CreateWiseChatDto } from './dto/create-wise-chat.dto';
-import { UpdateWiseChatDto } from './dto/update-wise-chat.dto';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { WiseChat } from './wisechat.entity';
+import { Message } from '../message/message.entity';
+import { Historial } from '../historial/historial.entity';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class WiseChatService {
-  create(createWiseChatDto: CreateWiseChatDto) {
-    return 'This action adds a new wiseChat';
+  private readonly apiUrl = 'https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english';
+
+  constructor(
+    @InjectRepository(WiseChat) private wiseChatRepo: Repository<WiseChat>,
+    @InjectRepository(Message) private messageRepo: Repository<Message>,
+    @InjectRepository(Historial) private historialRepo: Repository<Historial>,
+    private readonly httpService: HttpService,
+  ) {}
+
+  // Crear un nuevo chat
+  async createChat(name: string, description?: string) {
+    const chat = this.wiseChatRepo.create({ name, description });
+    return this.wiseChatRepo.save(chat);
   }
 
-  findAll() {
-    return `This action returns all wiseChat`;
+  // Enviar mensaje y analizar sentimiento
+  async sendMessage(userId: number, wiseChatId: number, content: string) {
+    // Guardar mensaje
+    const message = this.messageRepo.create({
+      user: { id: userId },
+      wiseChat: { id: wiseChatId },
+      content,
+    });
+    await this.messageRepo.save(message);
+
+    // Analizar sentimiento con Hugging Face
+    const headers = {
+      Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+    };
+
+    const response = await firstValueFrom(
+      this.httpService.post(this.apiUrl, { inputs: content }, { headers }),
+    );
+
+    const sentiment = response.data[0]?.label || 'UNKNOWN';
+
+    // Guardar en historial
+    const historial = this.historialRepo.create({
+      user: { id: userId },
+      wiseChat: { id: wiseChatId },
+      content_message: content,
+      sentiment,
+      urgency_level: sentiment === 'NEGATIVE' ? 'alta' : 'normal',
+    });
+    await this.historialRepo.save(historial);
+
+    return { message: 'Mensaje procesado', sentiment };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} wiseChat`;
-  }
-
-  update(id: number, updateWiseChatDto: UpdateWiseChatDto) {
-    return `This action updates a #${id} wiseChat`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} wiseChat`;
+  async getChatHistory(wiseChatId: number) {
+    return this.historialRepo.find({
+      where: { wiseChat: { id: wiseChatId } },
+      relations: ['user'],
+    });
   }
 }

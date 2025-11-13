@@ -1,9 +1,15 @@
 import { Module } from '@nestjs/common';
-import { WiseChatService } from './wise-chat.service';
-import { WiseChatController } from './wise-chat.controller';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { HttpModule } from '@nestjs/axios';
+import { WiseChat } from './wisechat.entity';
+import { Message } from '../message/message.entity';
+import { Historial } from '../historial/historial.entity';
+import { WiseChatService } from './wisechat.service';
+import { WiseChatController } from './wisechat.controller';
 
 @Module({
-  controllers: [WiseChatController],
+  imports: [TypeOrmModule.forFeature([WiseChat, Message, Historial]), HttpModule],
   providers: [WiseChatService],
+  controllers: [WiseChatController],
 })
 export class WiseChatModule {}
