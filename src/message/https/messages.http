@@ -1,0 +1,12 @@
+### Crear mensaje
+POST http://localhost:3000/message
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "wiseChatId": 2,
+  "content": "Me siento muy preocupado y ansioso hoy."
+}
+
+### Obtener historial de mensajes
+GET http://localhost:3000/message/chat/2

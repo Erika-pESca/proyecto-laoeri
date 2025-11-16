@@ -1,11 +1,14 @@
-import { IsUUID, IsString, IsNotEmpty } from 'class-validator';
+// src/message/dto/create-message.dto.ts
+import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
 export class CreateMessageDto {
-  @IsUUID()
-  userId: string;
+  @IsNotEmpty()
+  @IsNumber()
+  userId: number;
 
-  @IsUUID()
-  wiseChatId: string;
+  @IsNotEmpty()
+  @IsNumber()
+  wiseChatId: number;
 
   @IsNotEmpty()
   @IsString()
