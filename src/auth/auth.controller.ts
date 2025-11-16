@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -22,6 +22,15 @@ export class AuthController {
   @Post('forgot-password')
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
+  }
+
+  // ✅ ESTA RUTA SOLUCIONA EL ERROR 404 AL ABRIR EL LINK DEL CORREO
+  @Get('reset-password')
+  getResetPassword(@Query('token') token: string) {
+    return {
+      message: 'Token recibido correctamente',
+      token,
+    };
   }
 
   @Post('reset-password')
