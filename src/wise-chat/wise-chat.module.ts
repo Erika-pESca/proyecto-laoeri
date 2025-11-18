@@ -11,10 +11,7 @@ import { WiseChatController } from './wise-chat.controller';
 import { IaModule } from '../ia/ia.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([WiseChat, Message, Historial]),
-    IaModule,
-  ],
+  imports: [TypeOrmModule.forFeature([WiseChat, Message, Historial]), IaModule],
   controllers: [WiseChatController],
   providers: [WiseChatService],
   exports: [WiseChatService],

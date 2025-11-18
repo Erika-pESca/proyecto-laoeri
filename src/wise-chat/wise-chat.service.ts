@@ -53,21 +53,20 @@ export class WiseChatService {
    * Obtener un chat por su ID
    */
   async obtenerChat(id: number) {
-  const chat = await this.chatRepo.findOne({
-    where: { id },
-    relations: ['messages', 'notifications', 'historial'],
-    order: {
-      messages: {
-        creation_date: 'ASC',
+    const chat = await this.chatRepo.findOne({
+      where: { id },
+      relations: ['messages', 'notifications', 'historial'],
+      order: {
+        messages: {
+          creation_date: 'ASC',
+        },
       },
-    },
-  });
+    });
 
-  if (!chat) {
-    throw new NotFoundException(`Chat con ID ${id} no encontrado`);
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${id} no encontrado`);
+    }
+
+    return chat;
   }
-
-  return chat;
-}
-
 }

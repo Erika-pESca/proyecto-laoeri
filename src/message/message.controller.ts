@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,15 +12,12 @@ export class MessageController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  async crearMensaje(
-    @Body() dto: CreateMessageDto,
-    @Req() req: Request,
-  ) {
+  async crearMensaje(@Body() dto: CreateMessageDto, @Req() req: Request) {
     const userId = (req as any).user.id; // viene del JWT
 
     return await this.messageService.crearMensaje(
       userId,
-      Number(dto.chatId),   // conversión segura
+      Number(dto.chatId), // conversión segura
       dto.contenido,
     );
   }
