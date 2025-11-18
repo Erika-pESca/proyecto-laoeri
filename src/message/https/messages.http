@@ -1,12 +1,55 @@
-### Crear mensaje
-POST http://localhost:3000/message
+###############################################
+# 🔵 1. CREAR MENSAJE (PRUEBA COMPLETA)
+###############################################
+POST http://localhost:3000/messages
 Content-Type: application/json
 
 {
   "userId": 1,
-  "wiseChatId": 2,
-  "content": "Me siento muy preocupado y ansioso hoy."
+  "wiseChatId": 1,
+  "content": "Me siento muy triste y ansioso, necesito ayuda urgente"
 }
 
-### Obtener historial de mensajes
-GET http://localhost:3000/message/chat/2
+###
+###############################################
+# 🔵 2. CREAR MENSAJE POSITIVO
+###############################################
+POST http://localhost:3000/messages
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "wiseChatId": 1,
+  "content": "Hoy fue un día maravilloso, gracias por escucharme!"
+}
+
+###
+###############################################
+# 🔵 3. CREAR MENSAJE NEUTRAL
+###############################################
+POST http://localhost:3000/messages
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "wiseChatId": 1,
+  "content": "Estoy organizando mis tareas"
+}
+
+###
+###############################################
+# 🔵 4. OBTENER MENSAJES DE UN CHAT
+###############################################
+GET http://localhost:3000/messages/chat/1
+
+###
+###############################################
+# 🔵 5. PRUEBA DIRECTA A HUGGINGFACE (OPCIONAL)
+###############################################
+POST {{HUGGINGFACE_API_URL}}
+Content-Type: application/json
+Authorization: Bearer {{HUGGINGFACE_API_KEY}}
+
+{
+  "inputs": "Estoy muy mal, necesito ayuda"
+}

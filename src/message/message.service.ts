@@ -1,112 +1,106 @@
-// src/message/message.service.ts
-import {
-  Injectable,
-  NotFoundException,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { Message } from './entities/message.entity';
 import { WiseChat } from '../wise-chat/entities/wise-chat.entity';
-import { CreateMessageDto } from './dto/create-message.dto';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import { ConfigService } from '@nestjs/config';
+import { User } from '../user/entities/user.entity';
+
+import { EstadoMensaje } from './enums/estado-mensaje.enum';
+import { Sentimiento } from './enums/sentimiento.enum';
+import { NivelUrgencia } from './enums/nivel-urgencia.enum';
+
+import { IaService } from '../ia/ia.service';
+import { IaResponse } from '../ia/dto/ia-response.interface';
 
 @Injectable()
 export class MessageService {
-  private readonly logger = new Logger(MessageService.name);
-
   constructor(
-    @InjectRepository(Message) private messageRepo: Repository<Message>,
-    @InjectRepository(WiseChat) private wiseChatRepo: Repository<WiseChat>,
-    private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
+    @InjectRepository(Message)
+    private readonly messageRepo: Repository<Message>,
+
+    @InjectRepository(WiseChat)
+    private readonly chatRepo: Repository<WiseChat>,
+
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+
+    private readonly iaService: IaService,
   ) {}
 
-  async createMessage(dto: CreateMessageDto): Promise<any> {
-    const { userId, wiseChatId, content } = dto;
+  async crearMensaje(
+    userId: number,
+    chatId: number,
+    contenido: string,
+  ) {
+    // 1. Buscar chat y usuario en paralelo
+    const [chat, user] = await Promise.all([
+      this.chatRepo.findOne({
+        where: { id: chatId },
+        relations: ['messages'],
+      }),
+      this.userRepo.findOneBy({ id: userId }),
+    ]);
 
-    const wiseChat = await this.wiseChatRepo.findOne({
-      where: { id: wiseChatId },
+    // 2. Validar que existan
+    if (!chat) throw new NotFoundException('Chat no encontrado');
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    // 3. Analizar sentimiento con IA
+    const analisis: IaResponse = await this.iaService.analizarSentimiento(contenido);
+
+    // 4. Crear mensaje del usuario
+    const mensajeUsuario = this.messageRepo.create({
+      content: contenido,
+      status: EstadoMensaje.ENVIADO,
+      wiseChat: chat,
+      user: user, // Usar la entidad de usuario completa
+
+      sentimiento: analisis.sentimiento,
+      nivel_urgencia: analisis.nivel_urgencia,
+      puntaje_urgencia: analisis.puntaje_urgencia,
+
+      isBot: false,
+      alerta_disparada: analisis.puntaje_urgencia >= 3,
+      emoji_reaccion: analisis.emoji_reaccion ?? null,
     });
 
-    if (!wiseChat) {
-      throw new NotFoundException(`WiseChat with ID ${wiseChatId} not found`);
-    }
+    await this.messageRepo.save(mensajeUsuario);
 
-    // 1. Guardar mensaje básico
-    const newMessage = this.messageRepo.create({
-      content,
-      wiseChat: { id: wiseChatId },
-      user: { id: userId },
+    // 5. Generar respuesta IA
+    const respuestaBot: IaResponse = await this.iaService.generarRespuesta(
+      contenido,
+      analisis,
+    );
+
+    // 6. Crear mensaje del BOT
+    const mensajeBot = this.messageRepo.create({
+      content: respuestaBot.respuesta,
+      status: EstadoMensaje.ENVIADO,
+      wiseChat: chat,
+      user: null,
+
+      sentimiento: Sentimiento.NEUTRAL,
+      nivel_urgencia: NivelUrgencia.BAJA,
+      puntaje_urgencia: 0,
+
+      isBot: true,
+      alerta_disparada: false,
+      emoji_reaccion: null,
     });
 
-    await this.messageRepo.save(newMessage);
+    await this.messageRepo.save(mensajeBot);
 
-    // 2. Analizar sentimiento con IA
-    const sentiment = await this.analyzeSentiment(content);
-
-    // 3. Determinar urgencia
-    const urgency = sentiment === 'NEGATIVE' ? 'alta' : 'normal';
-
-    // 4. Actualizar el mensaje con sentimiento
-    newMessage.sentiment = sentiment;
-    newMessage.urgency_level = urgency;
-    await this.messageRepo.save(newMessage);
-
-    // 5. Actualizar el WiseChat
-    wiseChat.sentiment = sentiment;
-    wiseChat.urgency_level = urgency;
-    await this.wiseChatRepo.save(wiseChat);
+    // 7. Actualizar sentimiento global del chat
+    chat.sentimiento_general = String(analisis.sentimiento);
+    chat.nivel_urgencia_general = String(analisis.nivel_urgencia);
+    await this.chatRepo.save(chat);
 
     return {
-      message: newMessage,
-      chat: {
-        sentiment,
-        urgency,
-      },
+      ok: true,
+      mensajeUsuario,
+      mensajeBot,
+      chatActualizado: chat,
     };
-  }
-
-  // -------- IA: HuggingFace --------
-  private async analyzeSentiment(text: string): Promise<string> {
-    const apiUrl = this.configService.get<string>('HUGGINGFACE_API_URL');
-    const apiKey = this.configService.get<string>('HUGGINGFACE_API_KEY');
-
-    if (!apiUrl || !apiKey) {
-      throw new HttpException(
-        'Hugging Face API URL or Key not configured.',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    const headers = { Authorization: `Bearer ${apiKey}` };
-
-    try {
-      const response = await firstValueFrom(
-        this.httpService.post(apiUrl, { inputs: text }, { headers }),
-      );
-
-      const sentiment = response.data?.[0]?.[0]?.label;
-      return sentiment || 'UNKNOWN';
-    } catch (error) {
-      this.logger.error('Error calling Hugging Face API', error.stack);
-      throw new HttpException(
-        'Failed to analyze sentiment.',
-        HttpStatus.BAD_GATEWAY,
-      );
-    }
-  }
-
-  // -------- Historial --------
-  async getMessagesByChat(wiseChatId: number): Promise<Message[]> {
-    return this.messageRepo.find({
-      where: { wiseChat: { id: wiseChatId } },
-      relations: ['user'],
-      order: { creation_date: 'ASC' },
-    });
   }
 }

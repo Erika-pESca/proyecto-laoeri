@@ -1,26 +1,33 @@
-// src/message/message.controller.ts
 import {
   Controller,
   Post,
   Body,
-  Get,
-  Param,
-  ParseIntPipe,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
-import { MessageService } from './message.service';
-import { CreateMessageDto } from './dto/create-message.dto';
 
-@Controller('message')
+import type { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+import { CreateMessageDto } from './dto/create-message.dto';
+import { MessageService } from './message.service';
+
+@Controller('messages')
 export class MessageController {
   constructor(private readonly messageService: MessageService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
-  create(@Body() dto: CreateMessageDto) {
-    return this.messageService.createMessage(dto);
-  }
+  async crearMensaje(
+    @Body() dto: CreateMessageDto,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id; // viene del JWT
 
-  @Get('chat/:wiseChatId')
-  getMessages(@Param('wiseChatId', ParseIntPipe) wiseChatId: number) {
-    return this.messageService.getMessagesByChat(wiseChatId);
+    return await this.messageService.crearMensaje(
+      userId,
+      Number(dto.chatId),   // conversión segura
+      dto.contenido,
+    );
   }
 }
