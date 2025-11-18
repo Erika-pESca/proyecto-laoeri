@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -15,6 +15,8 @@ import { IaResponse } from '../ia/dto/ia-response.interface';
 
 @Injectable()
 export class MessageService {
+  private readonly logger = new Logger(MessageService.name);
+
   constructor(
     @InjectRepository(Message)
     private readonly messageRepo: Repository<Message>,
@@ -82,6 +84,17 @@ export class MessageService {
 
     await this.messageRepo.save(mensajeBot);
 
+    // Log para verificar que se envió la respuesta
+    this.logger.log(
+      `✅ Respuesta del bot enviada al usuario ${userId} en chat ${chatId}`,
+    );
+    this.logger.debug(
+      `📝 Contenido respuesta bot: ${mensajeBot.content.substring(0, 100)}...`,
+    );
+    this.logger.debug(
+      `💾 Mensaje bot guardado con ID: ${mensajeBot.id}, isBot: ${mensajeBot.isBot}`,
+    );
+
     // 6. Actualizar sentimiento global del chat
     chat.sentimiento_general = String(iaResult.sentimiento);
     chat.nivel_urgencia_general = String(iaResult.nivel_urgencia);
@@ -92,6 +105,61 @@ export class MessageService {
       mensajeUsuario,
       mensajeBot,
       chatActualizado: chat,
+    };
+  }
+
+  /**
+   * Obtener todos los mensajes de un chat
+   */
+  async obtenerMensajesPorChat(chatId: number): Promise<Message[]> {
+    const chat = await this.chatRepo.findOne({
+      where: { id: chatId },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
+    }
+
+    const mensajes = await this.messageRepo.find({
+      where: { wiseChat: { id: chatId } },
+      relations: ['user'],
+      order: {
+        creation_date: 'ASC',
+      },
+    });
+
+    this.logger.debug(
+      `📬 Obtenidos ${mensajes.length} mensajes del chat ${chatId}`,
+    );
+    const mensajesBot = mensajes.filter((m) => m.isBot);
+    this.logger.debug(
+      `🤖 Mensajes del bot: ${mensajesBot.length} de ${mensajes.length}`,
+    );
+
+    return mensajes;
+  }
+
+  /**
+   * Verificar si hay respuestas del bot para un chat
+   */
+  async verificarRespuestasBot(chatId: number): Promise<{
+    tieneRespuestas: boolean;
+    totalMensajes: number;
+    mensajesBot: number;
+    ultimaRespuesta: Message | null;
+  }> {
+    const mensajes = await this.obtenerMensajesPorChat(chatId);
+    const mensajesBot = mensajes.filter((m) => m.isBot);
+    const ultimaRespuesta =
+      mensajesBot.length > 0
+        ? mensajesBot[mensajesBot.length - 1]
+        : null;
+
+    return {
+      tieneRespuestas: mensajesBot.length > 0,
+      totalMensajes: mensajes.length,
+      mensajesBot: mensajesBot.length,
+      ultimaRespuesta,
     };
   }
 }
