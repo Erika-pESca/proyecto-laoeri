@@ -42,7 +42,7 @@ import { join } from 'path';
     AuthModule,
     UserModule,
     WiseChatModule,
-    MessageModule,  // 👈 NECESARIO PARA /message
+    MessageModule,
   ],
 })
 export class AppModule {
