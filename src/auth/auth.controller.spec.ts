@@ -4,12 +4,14 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import type { Response } from 'express';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -23,6 +25,11 @@ describe('AuthController', () => {
     resetPassword: jest.fn(),
   };
 
+  // Mock del ConfigService
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
   // Datos de prueba
   const mockRegisterDto: RegisterDto = {
     name: 'erika',
@@ -32,7 +39,7 @@ describe('AuthController', () => {
   };
 
   const mockLoginDto: LoginDto = {
-    email: 'epescaalfonso@gmail.com',
+    name: 'erika',
     password: '123456',
   };
 
@@ -81,6 +88,10 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: mockAuthService,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
     }).compile();
 
@@ -89,6 +100,11 @@ describe('AuthController', () => {
 
     // Limpiar mocks antes de cada test
     jest.clearAllMocks();
+    // Configurar default para FRONTEND_URL
+    mockConfigService.get.mockImplementation((key: string) => {
+      if (key === 'FRONTEND_URL') return 'http://localhost:3000';
+      return undefined;
+    });
   });
 
   it('debería estar definido', () => {
@@ -190,7 +206,6 @@ describe('AuthController', () => {
       expect(service.login).toHaveBeenCalledWith(mockLoginDto);
       expect(service.login).toHaveBeenCalledWith(
         expect.objectContaining({
-          email: 'epescaalfonso@gmail.com',
           password: '123456',
         }),
       );
@@ -297,47 +312,71 @@ describe('AuthController', () => {
   });
 
   describe('getResetPassword', () => {
-    it('retornar token recibido correctamente', () => {
+    it('redirigir al frontend con el token correctamente', () => {
       // Arrange
       const token = 'reset-token-123';
+      const mockResponse = {
+        redirect: jest.fn().mockReturnThis(),
+      } as unknown as Response;
 
       // Act
-      const result = controller.getResetPassword(token);
+      controller.getResetPassword(token, mockResponse);
 
       // Assert
-      expect(result).toEqual({
-        message: 'Token recibido correctamente',
-        token: 'reset-token-123',
-      });
-      expect(result).toHaveProperty('message');
-      expect(result).toHaveProperty('token');
-      expect(result.token).toBe(token);
+      expect(mockConfigService.get).toHaveBeenCalledWith('FRONTEND_URL');
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'http://localhost:3000/reset-password.html?token=reset-token-123',
+      );
     });
 
-    it('manejar token undefined', () => {
+    it('usar URL por defecto cuando FRONTEND_URL no está configurado', () => {
       // Arrange
-      const token = undefined as any;
+      const token = 'reset-token-123';
+      const mockResponse = {
+        redirect: jest.fn().mockReturnThis(),
+      } as unknown as Response;
+      mockConfigService.get.mockReturnValue(undefined);
 
       // Act
-      const result = controller.getResetPassword(token);
+      controller.getResetPassword(token, mockResponse);
 
       // Assert
-      expect(result).toEqual({
-        message: 'Token recibido correctamente',
-        token: undefined,
-      });
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'http://localhost:3000/reset-password.html?token=reset-token-123',
+      );
     });
 
-    it('retornar estructura correcta del mensaje', () => {
+    it('codificar el token correctamente en la URL', () => {
       // Arrange
-      const token = 'test-token';
+      const token = 'token with spaces & special chars';
+      const mockResponse = {
+        redirect: jest.fn().mockReturnThis(),
+      } as unknown as Response;
 
       // Act
-      const result = controller.getResetPassword(token);
+      controller.getResetPassword(token, mockResponse);
 
       // Assert
-      expect(result.message).toBe('Token recibido correctamente');
-      expect(typeof result.message).toBe('string');
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        expect.stringContaining(encodeURIComponent(token)),
+      );
+    });
+
+    it('remover barra final de FRONTEND_URL si existe', () => {
+      // Arrange
+      const token = 'reset-token-123';
+      const mockResponse = {
+        redirect: jest.fn().mockReturnThis(),
+      } as unknown as Response;
+      mockConfigService.get.mockReturnValue('http://localhost:3000/');
+
+      // Act
+      controller.getResetPassword(token, mockResponse);
+
+      // Assert
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'http://localhost:3000/reset-password.html?token=reset-token-123',
+      );
     });
   });
 
