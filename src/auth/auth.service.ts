@@ -104,8 +104,13 @@ export class AuthService {
       { expiresIn: '30m' },
     );
 
-    const frontend = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-    const resetLink = `${frontend.replace(/\/$/, '')}/reset-password.html?token=${token}`;
+    // Usar el endpoint del backend que redirige correctamente al frontend
+    // Usar URL absoluta para evitar problemas con variables de entorno
+    const backendUrl = 'http://localhost:3000';
+    const resetLink = `${backendUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+    
+    // Log para depuración (remover en producción)
+    console.log('Reset link generado:', resetLink);
 
     await this.mailerService.sendMail({
       to: user.email,

@@ -327,71 +327,6 @@
 
         const API_URL = 'http://localhost:3000';
 
-        // Componente de Login
-        function LoginSection({ onLogin }) {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState('');
-            const [loading, setLoading] = useState(false);
-
-            const handleLogin = async () => {
-                setError('');
-                setLoading(true);
-
-                try {
-                    const response = await fetch(`${API_URL}/auth/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password }),
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(data.message || 'Error al iniciar sesión');
-                    }
-
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    onLogin(data.token, data.user);
-                } catch (err) {
-                    setError(err.message);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            return (
-                <div className="login-section">
-                    <h2>🔐 Iniciar Sesión</h2>
-                    <div className="input-group">
-                        <label>Email</label>
-                        <input
-                            type="email"
-                            placeholder="tu@email.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                        />
-                    </div>
-                    <div className="input-group">
-                        <label>Contraseña</label>
-                        <input
-                            type="password"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                        />
-                    </div>
-                    {error && <div className="error">❌ {error}</div>}
-                    <button onClick={handleLogin} disabled={loading || !email || !password}>
-                        {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-                    </button>
-                </div>
-            );
-        }
-
         // Componente de Mensaje
         function Message({ message, isBot }) {
             const time = new Date(message.creation_date || Date.now()).toLocaleTimeString('es-ES', {
@@ -668,29 +603,32 @@
                 }
             };
 
-            const handleLogin = (newToken, newUser) => {
-                setToken(newToken);
-                setUser(newUser);
-            };
+            // Verificar token al cargar y redirigir si no existe
+            useEffect(() => {
+                const storedToken = localStorage.getItem('token');
+                if (!storedToken) {
+                    // Redirigir al login de frontend si no hay token
+                    window.location.href = '../frontend/index.html';
+                }
+            }, []);
 
             const handleLogout = () => {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                setToken(null);
-                setUser(null);
-                setChats([]);
-                setCurrentChatId(null);
-                setMessages([]);
-                setMessagesCache({}); // Limpiar caché al salir
+                // Redirigir al login de frontend
+                window.location.href = '../frontend/index.html';
             };
 
+            // Si no hay token, no renderizar nada (se redirigirá)
             if (!token) {
                 return (
                     <div className="chat-container">
                         <div className="chat-header">
                             <h1>🤖 MindConnect AI</h1>
                         </div>
-                        <LoginSection onLogin={handleLogin} />
+                        <div style={{ padding: '30px', textAlign: 'center' }}>
+                            <p>Redirigiendo al login...</p>
+                        </div>
                     </div>
                 );
             }

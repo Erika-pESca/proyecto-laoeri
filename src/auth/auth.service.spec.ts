@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { MailerService } from '@nestjs-modules/mailer';
+import { ConfigService } from '@nestjs/config';
 import {
   ConflictException,
   NotFoundException,
@@ -42,6 +43,10 @@ describe('AuthService', () => {
     sendMail: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
   // Datos de prueba
   const mockUser: User = {
     id: 1,
@@ -63,7 +68,7 @@ describe('AuthService', () => {
   };
 
   const mockLoginDto: LoginDto = {
-    email: 'epescaalfonso@gmail.com',
+    name: 'erika',
     password: '123456',
   };
 
@@ -91,6 +96,10 @@ describe('AuthService', () => {
         {
           provide: MailerService,
           useValue: mockMailerService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -236,7 +245,7 @@ describe('AuthService', () => {
 
       // Assert
       expect(userRepository.findOne).toHaveBeenCalledWith({
-        where: { email: mockLoginDto.email },
+        where: { name: mockLoginDto.name },
       });
       expect(mockedBcrypt.compare).toHaveBeenCalledWith(
         mockLoginDto.password,
@@ -270,7 +279,7 @@ describe('AuthService', () => {
         'Usuario no encontrado',
       );
       expect(userRepository.findOne).toHaveBeenCalledWith({
-        where: { email: mockLoginDto.email },
+        where: { name: mockLoginDto.name },
       });
       expect(mockedBcrypt.compare).not.toHaveBeenCalled();
       expect(jwtService.sign).not.toHaveBeenCalled();
@@ -319,10 +328,11 @@ describe('AuthService', () => {
     it('enviar correo de recuperación correctamente', async () => {
       // Arrange
       const token = 'reset-token-123';
-      const resetLink = `http://localhost:3000/auth/reset-password?token=${token}`;
+      const resetLink = `http://localhost:3000/reset-password.html?token=${token}`;
       mockUserRepository.findOne.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue(token);
       mockMailerService.sendMail.mockResolvedValue(undefined);
+      mockConfigService.get.mockReturnValue('http://localhost:3000');
 
       // Act
       const result = await service.forgotPassword(mockForgotPasswordDto);
@@ -385,10 +395,11 @@ describe('AuthService', () => {
     it('enviar correo con el link de reset correcto', async () => {
       // Arrange
       const token = 'reset-token-123';
-      const expectedResetLink = `http://localhost:3000/auth/reset-password?token=${token}`;
+      const expectedResetLink = `http://localhost:3000/reset-password.html?token=${token}`;
       mockUserRepository.findOne.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue(token);
       mockMailerService.sendMail.mockResolvedValue(undefined);
+      mockConfigService.get.mockReturnValue('http://localhost:3000');
 
       // Act
       await service.forgotPassword(mockForgotPasswordDto);
